@@ -2530,6 +2530,11 @@ body {
   background: #fff;
 }
 
+[data-field="reason"].needs-manual-reason {
+  box-shadow: inset 0 0 0 2px #f59e0b;
+  background: #fffaf0;
+}
+
 .detail-editor-actions {
   display: flex;
   flex-wrap: wrap;

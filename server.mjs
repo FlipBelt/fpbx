@@ -5936,7 +5936,7 @@ async function serveStatic(request, response) {
 
 async function serveV2Index(response) {
   const source = await readFile(join(root, "index.html"), "utf8");
-  const version = "20260921-travel-info-1";
+  const version = "20260921-manual-reason-1";
   const html = source
     .replace("<title>发票自动报销助手</title>", "<title>发票自动报销助手</title>")
     .replace(/<link rel="stylesheet" href="\.\/styles\.css\?v=[^"]+"\s*\/>/, `<link rel="stylesheet" href="/styles.css?v=${version}" />\n    <link rel="stylesheet" href="/v2.css?v=${version}" />`)
@@ -5950,7 +5950,7 @@ async function serveV2Index(response) {
 
 async function serveV1Index(response) {
   const source = await readFile(join(root, "index.html"), "utf8");
-  const version = "20260921-travel-info-1";
+  const version = "20260921-manual-reason-1";
   const html = source
     .replace(/<link rel="stylesheet" href="\.\/styles\.css\?v=[^"]+"\s*\/>/, `<link rel="stylesheet" href="/styles.css?v=${version}" />`)
     .replace(/<script src="\.\/app\.js\?v=[^"]+"><\/script>/, `<script src="/app.js?v=${version}"></script>\n    <script src="/v2-router.js?v=${version}"></script>`);

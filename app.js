@@ -1301,11 +1301,14 @@ function renderOcrSuggestionDialog() {
     const fields = [
       ["金额", item.amount ? `${item.amount} 元` : "待人工确认", item.sources.amount],
       ["费用发生日期", item.businessDate || "待人工确认", item.sources.businessDate],
-      [item.rowKind === "travel" ? "费用类型" : "申请事由", item.rowKind === "travel" ? item.category.type : item.reason, item.sources.category],
+      [item.rowKind === "travel" ? "费用类型" : "申请事由", item.rowKind === "travel" ? item.category.type : "需人工填写", item.rowKind === "travel" ? item.sources.category : "已关闭自动回填，请人工填写"],
       ["发票类型", item.invoiceType || "待人工确认", item.sources.invoiceType],
     ];
+    const cardDescription = item.rowKind === "travel"
+      ? (item.category.type || "费用类型待核对")
+      : "申请事由需人工填写";
     return `<article class="ocr-suggestion-card ${review ? "is-review" : ""}">
-      <header><div><h3>${escapeHtml(label)}</h3><p>${escapeHtml(item.reason)}</p></div><span class="ocr-confidence ${review ? "review" : ""}">${review ? "需核对" : "高置信"}</span></header>
+      <header><div><h3>${escapeHtml(label)}</h3><p>${escapeHtml(cardDescription)}</p></div><span class="ocr-confidence ${review ? "review" : ""}">${review ? "需核对" : "高置信"}</span></header>
       <dl class="ocr-suggestion-fields">${fields.map(([term, value, source]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd><small>${escapeHtml(source)}</small></div>`).join("")}</dl>
       <div class="ocr-suggestion-files"><b>对应附件：</b>${item.fileKeys?.length
         ? item.fileKeys.map((key, fileIndex) => {
@@ -1318,7 +1321,7 @@ function renderOcrSuggestionDialog() {
     </article>`;
   }).join("") || `<p class="assignment-empty">暂无已完成分配且可生成建议的附件。</p>`;
   ocrSuggestionStatus.textContent = suggestions.length
-    ? "采纳只填写空字段或此前由 OCR 填写的字段，不会覆盖手工填写内容。"
+    ? "采纳只填写金额、日期、费用类型和发票类型等可确认字段；申请事由/费用说明必须人工填写。不会覆盖手工填写内容。"
     : "请先将付款截图和发票附件分配到费用明细后再试。";
   applyOcrSuggestionsButton.disabled = !suggestions.length;
 }
@@ -1339,8 +1342,8 @@ function snapshotOcrSuggestionState() {
 
 function applyOcrSuggestionFields(row, item, { force = false } = {}) {
   const fields = item.rowKind === "travel"
-    ? { amount: item.amount, businessDate: item.businessDate, expenseType: item.category.type, reason: item.reason }
-    : { amount: item.amount, businessDate: item.businessDate, invoiceType: item.invoiceType, reason: item.reason };
+    ? { amount: item.amount, businessDate: item.businessDate, expenseType: item.category.type }
+    : { amount: item.amount, businessDate: item.businessDate, invoiceType: item.invoiceType };
   const autoFields = new Set(row.ocrAutoFields || []);
   Object.entries(fields).forEach(([field, value]) => {
     if (!value) return;
@@ -1401,7 +1404,34 @@ function applyOcrDetailSuggestions() {
   rollbackOcrSuggestionsButton.hidden = false;
   syncDraft();
   ocrSuggestionDialog.close();
+  window.setTimeout(() => {
+    const focusV2Reason = window.__reimbursementV2FocusManualReason;
+    if (typeof focusV2Reason === "function") {
+      focusV2Reason();
+      return;
+    }
+    window.__reimbursementFocusManualReason?.();
+  }, 0);
 }
+
+function focusFirstEmptyReasonField({ scroll = true } = {}) {
+  const fields = [...document.querySelectorAll('[data-field="reason"]')];
+  const visibleFields = fields.filter((field) => field.getClientRects().length > 0);
+  const candidates = visibleFields.length ? visibleFields : fields;
+  const target = candidates.find((field) => !String(field.value || "").trim());
+  if (!target) return false;
+  if (scroll) target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.add("needs-manual-reason");
+  const clearHighlight = () => target.classList.remove("needs-manual-reason");
+  target.addEventListener("input", clearHighlight, { once: true });
+  window.setTimeout(() => {
+    target.focus();
+    if (typeof target.select === "function") target.select();
+  }, scroll ? 220 : 0);
+  return true;
+}
+
+window.__reimbursementFocusManualReason = focusFirstEmptyReasonField;
 
 function rollbackOcrDetailSuggestions() {
   const snapshot = state.ocrSuggestionRollback;
@@ -3411,14 +3441,14 @@ function renderWorkflowForm() {
     : "";
 
   if (isDaily && relatedDriven) {
-    dailyDetailHint.textContent = `操作顺序：1. 先选择${workflow.related?.label || "关联审批"}，系统将自动生成对应费用明细；2. 在下方附件工作台批量上传附件；3. 按关联审批分配附件，附件将自动回填，付款截图合计可一键填入金额；4. 核对后提交。仅有拆分需求时再新增费用明细。`;
+    dailyDetailHint.textContent = `操作顺序：1. 先选择${workflow.related?.label || "关联审批"}，系统将自动生成对应费用明细；2. 在下方附件工作台批量上传附件；3. 按关联审批分配附件，金额、日期等可确认字段会自动回填，申请事由请手工填写；付款截图合计可一键填入金额；4. 核对后提交。仅有拆分需求时再新增费用明细。`;
   }
   if (isDaily && state.dailyImportNotice) {
     dailyDetailHint.textContent = state.dailyImportNotice;
   }
   if (travelDetailHint) {
     travelDetailHint.textContent = relatedDriven
-      ? "操作顺序：1. 先选择关联出差申请，系统将自动生成对应费用明细；2. 批量上传付款截图和发票；3. 在附件工作台按关联审批分配；4. 附件会自动回填，付款截图合计可一键填入金额，核对后提交。仅有拆分需求时再新增费用明细。"
+      ? "操作顺序：1. 先选择关联出差申请，系统将自动生成对应费用明细；2. 批量上传付款截图和发票；3. 在附件工作台按关联审批分配；4. 金额、日期等可确认字段会自动回填，费用说明请手工填写；付款截图合计可一键填入金额，核对后提交。仅有拆分需求时再新增费用明细。"
       : "每一行会同步写入钉钉差旅报销单的表格。请先选择关联出差申请，再将付款截图和发票附件分配到对应行。";
   }
   if (addDailyRowButton) addDailyRowButton.textContent = relatedDriven ? "拆分明细" : "新增一行";

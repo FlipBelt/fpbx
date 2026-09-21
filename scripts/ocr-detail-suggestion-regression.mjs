@@ -14,6 +14,8 @@ const checks = [
   ["existing travel attachment assignment is preserved after split", appSource.includes("const alreadyAssigned = rows.some")],
   ["manual edits clear automatic field ownership", appSource.includes("autoFields.delete(field)") && appSource.includes("ocrAutoFields")],
   ["OCR application has rollback snapshot", appSource.includes("snapshotOcrSuggestionState") && appSource.includes("rollbackOcrDetailSuggestions")],
+  ["申请事由不再被 OCR 自动写入", !appSource.includes("expenseType: item.category.type, reason: item.reason") && !appSource.includes("invoiceType: item.invoiceType, reason: item.reason") && appSource.includes("申请事由/费用说明必须人工填写")],
+  ["回填完成后聚焦第一条待填写申请事由", appSource.includes("focusFirstEmptyReasonField") && appSource.includes("__reimbursementV2FocusManualReason")],
   ["preview dialog provides accept and defer actions", htmlSource.includes("applyOcrSuggestionsButton") && htmlSource.includes("closeOcrSuggestionButton")],
   ["main form exposes rollback action", htmlSource.includes("rollbackOcrSuggestionsButton")],
   ["preview dialog has dedicated responsive styling", styleSource.includes(".ocr-suggestion-dialog") && styleSource.includes(".ocr-suggestion-fields")],

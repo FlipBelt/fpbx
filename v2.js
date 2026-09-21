@@ -778,7 +778,7 @@
     const count = getExperimentalDetailCountInput();
     setup.innerHTML = `<section class="v2-line-setup-card">
       <div class="v2-experimental-step-kicker">第 2 步 · 只建立空白行</div>
-      <h3>此次报销有几条明细？</h3><p>这里先不填写金额和费用说明。上传附件并归类后，系统会自动回填金额、日期、费用说明和发票类型；下一步只补未识别的字段。</p>
+      <h3>此次报销有几条明细？</h3><p>这里先不填写金额和申请事由。上传附件并归类后，系统会自动回填金额、日期和发票类型等可确认字段；申请事由由你在下一步人工填写。</p>
       <div class="v2-line-setup-counter"><label for="v2DetailCount">报销明细数量</label><div class="v2-line-setup-controls"><button type="button" data-v2-detail-count-adjust="-1" aria-label="减少一条">−</button><input id="v2DetailCount" type="number" inputmode="numeric" min="1" max="20" value="${count}" aria-label="费用明细条数"><button type="button" data-v2-detail-count-adjust="1" aria-label="增加一条">＋</button><button type="button" class="primary" data-v2-detail-count-apply>确认明细数量</button></div></div>
       <div class="v2-generated-detail-preview"><div><strong>已自动建立的空白明细</strong><span>${count} 条</span></div><ol>${Array.from({ length: count }, (_, index) => `<li><b>第 ${index + 1} 条费用明细</b><small>待附件上传后自动回填</small></li>`).join("")}</ol></div>
       <small>如需减少条数，系统只会移除末尾尚未填写、也未分配附件的空白明细，避免误删已有资料。</small>
@@ -828,7 +828,7 @@
         autoFillNotice.id = "v2ExperimentalAutofillNotice";
         autoFillNotice.className = "v2-experimental-autofill-notice";
       }
-      autoFillNotice.textContent = v2State.experimentalAutoFillSummary || "上传并分配附件后，系统会自动填写能确认的日期、金额、事由和发票类型；请在此核对其余空项。";
+      autoFillNotice.textContent = v2State.experimentalAutoFillSummary || "上传并分配附件后，系统会自动填写能确认的日期、金额和发票类型；申请事由请人工填写。";
       if (details && autoFillNotice.parentElement !== details) details.append(autoFillNotice);
     } else {
       autoFillNotice?.remove();
@@ -843,7 +843,7 @@
         attachmentLead.id = "v2ExperimentalAttachmentLead";
         attachmentLead.className = "v2-experimental-step-lead";
       }
-      attachmentLead.innerHTML = `<div class="v2-experimental-step-kicker">第 3 步 · 上传一次即可</div><h3>上传并归类附件</h3><p>批量上传付款凭证、发票和行程单。系统会在“唯一明细”或“唯一 OCR 金额匹配”时自动归属；有歧义时再由你选择对应明细。归类完成后，下一步会自动回填字段。</p>`;
+      attachmentLead.innerHTML = `<div class="v2-experimental-step-kicker">第 3 步 · 上传一次即可</div><h3>上传并归类附件</h3><p>批量上传付款凭证、发票和行程单。系统会在“唯一明细”或“唯一 OCR 金额匹配”时自动归属；有歧义时再由你选择对应明细。归类完成后，下一步会自动回填可确认字段，并引导你填写申请事由。</p>`;
       if (attachments && attachmentLead.parentElement !== attachments) attachments.prepend(attachmentLead);
     } else {
       attachmentLead?.remove();
@@ -985,7 +985,7 @@
         : noInvoice
           ? "附件只需上传一次：首次可在这里批量上传全部付款凭证，再点击“分配附件”归入对应明细。"
           : isExperimentalDetailSetupWorkflow(workflow)
-            ? "先批量上传并分配付款截图和发票；进入下一步后，系统会按已归类附件自动回填能确认的字段。"
+            ? "先批量上传并分配付款截图和发票；进入下一步后，系统会按已归类附件自动回填金额、日期和发票类型等可确认字段，申请事由需人工填写。"
             : "附件只需上传一次：首次可在这里批量上传全部付款截图和发票，再点击“分配附件”归入对应明细。";
     }
 
@@ -1082,11 +1082,22 @@
       v2State.lastExperimentalOcrSignature = signature;
       state.ocrSuggestionItems = suggestions;
       applyOcrDetailSuggestions();
-      v2State.experimentalAutoFillSummary = `已根据 ${suggestions.length} 条已归类附件自动回填可确认字段；请核对仍为空或标记为风险的项目。`;
+      v2State.experimentalAutoFillSummary = `已根据 ${suggestions.length} 条已归类附件自动回填金额、日期和发票类型等可确认字段；请填写申请事由并核对风险项目。`;
       mountStableComponents();
       renderProgress();
     }, 80);
   }
+
+  function focusManualReasonStep() {
+    if (!isExperimentalDetailSetupWorkflow()) return false;
+    readDailyRowsFromDom();
+    if (!state.dailyRows.some((row) => !String(row.reason || "").trim())) return false;
+    openStep("details", { scroll: true });
+    window.setTimeout(() => window.__reimbursementFocusManualReason?.(), 260);
+    return true;
+  }
+
+  window.__reimbursementV2FocusManualReason = focusManualReasonStep;
 
   renderDailyRows = function renderV2DailyRows(...args) {
     const result = originalRenderDailyRows(...args);
