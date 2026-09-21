@@ -1,0 +1,42 @@
+{
+  "port": 8793,
+  "corpId": "请填钉钉企业 CorpId，或在应用首页地址带 ?corpId=$CORPID$",
+  "agentId": "请填钉钉企业内部应用的 AgentId",
+  "appId": "请填钉钉企业内部应用的 App ID",
+  "appKey": "请填钉钉企业内部应用的 AppKey",
+  "appSecret": "请填钉钉企业内部应用的 AppSecret",
+  "processCode": "PROC-4E593459-342D-499D-8ADA-6CF0664CCB9B",
+  "originatorUserId": "审批发起人的钉钉 userId",
+  "deptId": "审批发起人的部门 ID",
+  "socialCompanyRecognition": {
+    "enabled": true,
+    "fieldCode": "220ab1b5-f816-4d11-96c7-84eb07f9f3ba",
+    "fieldName": "主体（社保公司）",
+    "excludedUserIds": []
+  },
+  "scheduledApprovals": {
+    "enabled": false,
+    "releaseIntervalMs": 180000,
+    "releaseWindow": "09:00-18:00 Asia/Shanghai",
+    "maxAttempts": 5,
+    "reconciliationDays": 7,
+    "reconciliationMaxResults": 60,
+    "trackingComponentName": "定时发送追踪号",
+    "trackingComponentId": "",
+    "encryptionKey": "上线前生成并安全保存的独立随机密钥",
+    "adminUserIds": []
+  },
+  "adminWorkbench": {
+    "enabled": false,
+    "readEnabled": false,
+    "repairEnabled": false,
+    "submitEnabled": false,
+    "manualCreateEnabled": false,
+    "mysqlHost": "127.0.0.1",
+    "mysqlPort": 3306,
+    "mysqlDatabase": "reimbursement_workbench",
+    "mysqlUser": "",
+    "mysqlPassword": "",
+    "encryptionKey": "上线前生成并安全保存的独立随机密钥"
+  }
+}

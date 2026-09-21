@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LifecycleConfiguration>
+  <Rule>
+    <ID>reimbursement-assistant-retain-60-days</ID>
+    <Prefix>reimbursement-assistant/</Prefix>
+    <Status>Enabled</Status>
+    <Expiration>
+      <Days>60</Days>
+    </Expiration>
+  </Rule>
+</LifecycleConfiguration>

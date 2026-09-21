@@ -1,0 +1,43 @@
+# Dependencies and local runtime output
+node_modules/
+logs/
+.deploy-backups/
+.cache/
+.tmp/
+tmp/
+deploy/*.local.json
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+dingtalk.config.json
+!dingtalk.config.example.json
+
+# Production/user data, approval payloads, uploaded files and databases
+data/
+artifacts/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Spreadsheet import data (templates and scripts remain tracked)
+发票台账批量录入工具/待*.json
+
+# Generated benchmark/report output
+scripts/*report*.json
+
+# Local diagnostics, screenshots and generated previews
+.tmp-*
+local-smoke.png
+preview-*.html
+*.log
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

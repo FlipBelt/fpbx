@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>发票自动报销助手</title>
+    <link rel="stylesheet" href="./styles.css?v=20260805-submission-history-1" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="assistant-panel" aria-label="发票自动报销助手">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">钉钉 OA 自动报销入口</p>
+            <h1>发票自动报销助手</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="secondary-button" id="submissionHistoryButton" type="button">我的提交记录</button>
+            <button class="secondary-button" id="saveDraftButton" type="button">保存草稿</button>
+            <div class="status-pill" id="connectionStatus">初始化</div>
+          </div>
+        </header>
+
+        <section class="workflow-section" aria-label="选择报销流程">
+          <div class="section-heading">
+            <div>
+              <p class="step-label">第一步</p>
+              <h2>先选择报销流程</h2>
+            </div>
+            <p>不同流程会匹配不同 OA 表单和前置审批。</p>
+          </div>
+          <div class="workflow-grid" id="workflowCards" role="list"></div>
+          <label class="workflow-select-label" hidden>
+            <span>报销流程</span>
+            <select id="workflowSelect" name="workflowType"></select>
+          </label>
+        </section>
+
+        <section class="route-mode-section" id="routeModeSection" aria-label="报销归属方式" hidden>
+          <div>
+            <p class="step-label">报销归属</p>
+            <h2 id="routeModeTitle">本人报销</h2>
+            <p id="routeModeSummary">部门和付款公司按当前登录人的钉钉组织及社保主体识别。</p>
+          </div>
+          <div class="route-mode-actions">
+            <button class="secondary-button" id="onBehalfOpenButton" type="button" hidden>代他人报销</button>
+            <button class="secondary-button" id="onBehalfSelfButton" type="button" hidden>切回本人报销</button>
+          </div>
+        </section>
+
+        <dialog class="on-behalf-dialog" id="onBehalfDialog">
+          <form method="dialog" class="on-behalf-dialog-content">
+            <header>
+              <div>
+                <p class="eyebrow">独立报销入口</p>
+                <h2>代他人报销</h2>
+                <p>请选择本次费用实际归属人。部门和付款公司将按该员工信息重新识别。</p>
+              </div>
+              <button class="icon-button" id="onBehalfCloseButton" type="submit" value="cancel" aria-label="关闭">×</button>
+            </header>
+            <label class="on-behalf-search-field">
+              <span>搜索员工姓名或钉钉编号</span>
+              <div>
+                <input id="onBehalfSearchInput" type="search" autocomplete="off" placeholder="输入至少一个姓名或编号" />
+                <button class="secondary-button" id="onBehalfSearchButton" type="button">查询</button>
+              </div>
+            </label>
+            <p class="on-behalf-status" id="onBehalfStatus" role="status"></p>
+            <div class="on-behalf-results" id="onBehalfResults"></div>
+            <section class="on-behalf-preview" id="onBehalfPreview" hidden>
+              <strong id="onBehalfPreviewName"></strong>
+              <p id="onBehalfPreviewDepartment"></p>
+              <p id="onBehalfPreviewCompany"></p>
+              <div class="on-behalf-dialog-actions">
+                <button class="secondary-button" type="submit" value="cancel">取消</button>
+                <button class="primary-button" id="onBehalfConfirmButton" type="button">确认使用该归属人</button>
+              </div>
+            </section>
+          </form>
+        </dialog>
+
+        <section class="conversation" id="conversation" aria-live="polite">
+          <article class="message bot">
+            <div class="avatar">AI</div>
+            <div class="bubble">
+              请选择一个报销流程。当前版本先打通分类入口、附件上传和 OA 发起链路；复杂规则会在通路稳定后继续补。
+            </div>
+          </article>
+        </section>
+
+        <div id="leftRelatedMount"></div>
+        <div class="daily-left-meta" id="dailyLeftMetaMount"></div>
+
+        <section class="detail-editor" id="dailyDetailSection" aria-label="费用明细表">
+          <div class="detail-editor-header">
+            <div>
+              <p class="step-label">第二步</p>
+              <h2>填写费用明细</h2>
+            </div>
+            <div class="detail-editor-actions">
+              <button class="secondary-button" id="importExpenseSheetButton" type="button">导入 Excel 明细</button>
+              <button class="secondary-button" id="addDailyRowButton" type="button">新增一行</button>
+              <input id="expenseSheetInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+            </div>
+          </div>
+          <p class="detail-editor-hint" id="dailyDetailHint"></p>
+          <div class="detail-table-wrap">
+            <table class="detail-table">
+              <thead>
+                <tr>
+                  <th>发生日期</th>
+                  <th>申请事由</th>
+                  <th>金额</th>
+                  <th>所属项目/业务</th>
+                  <th id="dailyInvoiceTypeHeader">发票类型</th>
+                  <th>付款截图</th>
+                  <th id="dailyInvoiceAttachmentHeader">发票附件</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="dailyRowsBody"></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="2">合计</th>
+                  <td id="dailyTableTotal">0.00</td>
+                  <td id="dailyTableFooterSpacer" colspan="6"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        <section class="detail-editor" id="travelDetailSection" aria-label="差旅报销明细表" hidden>
+          <div class="detail-editor-header">
+            <div>
+              <p class="step-label">第二步</p>
+              <h2>填写差旅报销明细</h2>
+            </div>
+            <button class="secondary-button" id="addTravelRowButton" type="button">新增一行</button>
+          </div>
+          <p class="detail-editor-hint" id="travelDetailHint">每一行会同步写入钉钉差旅报销单的表格。请先选择关联出差申请，再将付款截图和发票附件分配到对应行。</p>
+          <div class="detail-table-wrap">
+            <table class="detail-table travel-detail-table">
+              <thead>
+                <tr>
+                  <th>关联出差申请</th>
+                  <th>报销金额</th>
+                  <th>费用发生日期</th>
+                  <th>费用类型</th>
+                  <th>费用说明</th>
+                  <th>付款截图附件</th>
+                  <th>发票附件</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="travelRowsBody"></tbody>
+              <tfoot>
+                <tr>
+                  <th>合计</th>
+                  <td id="travelTableTotal">0.00</td>
+                  <td colspan="6"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+
+        <section class="attachment-dock" id="attachmentDock" aria-label="附件工作台">
+          <div class="attachment-dock-header">
+            <div>
+              <strong>附件工作台</strong>
+              <span id="attachmentDockSummary">已上传 0 个 · 付款 0 · 发票 0 · 其他 0</span>
+            </div>
+            <p class="bulk-upload-tip" id="bulkUploadTip">可一次性选择本次报销的全部付款截图和发票，上传后再分配到下方费用明细。</p>
+            <div class="attachment-dock-actions">
+              <button class="secondary-button" id="assignAttachmentsButton" type="button" hidden>分配附件</button>
+              <button class="text-button" id="rollbackOcrSuggestionsButton" type="button" hidden>撤销 OCR 填写</button>
+              <button class="text-button" id="toggleAttachmentDockButton" type="button">展开</button>
+            </div>
+          </div>
+
+          <section class="upload-grid">
+            <section class="drop-zone" id="paymentDropZone">
+              <input id="paymentFileInput" class="file-input" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.heic" />
+              <label for="paymentFileInput">
+                <span class="upload-icon" aria-hidden="true">+</span>
+                <span>添加付款截图</span>
+                <small>订单/付款截图</small>
+              </label>
+            </section>
+
+            <section class="drop-zone" id="invoiceDropZone">
+              <input id="invoiceFileInput" class="file-input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic" />
+              <label for="invoiceFileInput">
+                <span class="upload-icon" aria-hidden="true">+</span>
+                <span>添加发票附件</span>
+                <small>PDF/图片</small>
+              </label>
+            </section>
+
+            <section class="drop-zone" id="otherDropZone">
+              <input id="otherFileInput" class="file-input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx" />
+              <label for="otherFileInput">
+                <span class="upload-icon" aria-hidden="true">+</span>
+                <span>添加其他附件</span>
+                <small>证明/补充</small>
+              </label>
+            </section>
+          </section>
+
+          <section class="upload-progress" id="uploadProgressBox" hidden>
+            <strong id="uploadProgressTitle">正在识别附件</strong>
+            <p id="uploadProgressText">多张照片会逐个上传并调用 OCR，请等待全部完成后再提交。</p>
+          </section>
+
+          <section class="credential-processing-box" id="credentialProcessingBox" hidden>
+            <div>
+              <strong id="credentialProcessingTitle">系统已自动处理凭证</strong>
+              <p id="credentialProcessingText"></p>
+              <div class="credential-processing-events" id="credentialProcessingEvents"></div>
+            </div>
+            <button class="secondary-button" id="reviewPossibleDuplicatesButton" type="button" hidden>集中确认</button>
+          </section>
+
+          <section class="files-list" id="filesList" aria-label="已上传文件"></section>
+        </section>
+
+        <section class="oa-form-section" id="oaFormSection">
+          <div class="oa-form-title">
+            <div>
+              <p class="eyebrow">报销申请</p>
+              <h2>核对并提交</h2>
+            </div>
+            <span>带 * 为必填项</span>
+          </div>
+          <div id="oaFormMount"></div>
+        </section>
+      </section>
+
+      <aside class="draft-panel" aria-label="OA 审批草稿">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">目标 OA 表单</p>
+            <h2 id="targetFormTitle">待选择</h2>
+          </div>
+          <div class="panel-actions">
+            <button class="secondary-button" id="resetButton" type="button">清空</button>
+            <button class="icon-button" id="collapseDraftButton" type="button" title="隐藏右侧表单">×</button>
+          </div>
+        </div>
+
+        <form id="expenseForm" class="expense-form">
+          <section class="hint-block">
+            <strong id="workflowTitle">未选择流程</strong>
+            <p id="workflowDescription">请选择左侧报销流程后填写表单。</p>
+          </section>
+
+          <section class="identity-box" id="identityBox">
+            <strong>发起人</strong>
+            <p id="identityStatus">正在获取钉钉登录信息...</p>
+          </section>
+
+          <label id="departmentField" hidden>
+            <span>发起部门</span>
+            <select name="deptId" id="departmentSelect"></select>
+          </label>
+
+          <section class="related-box" id="relatedBox" hidden>
+            <div class="related-header">
+              <div>
+                <strong id="relatedTitle">关联审批单</strong>
+                <p id="relatedHint">系统会自动读取近期前置审批供选择。</p>
+              </div>
+              <button class="secondary-button" id="loadRelatedButton" type="button">查询近期审批</button>
+            </div>
+            <div class="related-source-options" id="relatedSourceOptions" hidden></div>
+            <label id="relatedManualField" hidden>
+              <span>未显示的关联审批</span>
+              <div class="related-manual-entry">
+                <input name="relatedManual" id="relatedManualInput" placeholder="粘贴审批编号、审批详情链接或审批实例 ID" />
+                <button class="secondary-button" id="addManualRelatedButton" type="button">添加关联</button>
+              </div>
+              <small>用于补录列表外的本人审批。可直接填写页面展示的审批编号：系统会自动匹配已同步的审批；未同步的历史审批暂无法自动补录。</small>
+            </label>
+            <div class="related-options" id="relatedSelect" hidden></div>
+            <p class="muted-line" id="relatedStatus">暂未选择关联审批。</p>
+            <div class="related-detail" id="relatedDetail" hidden></div>
+          </section>
+
+          <label id="businessDateField">
+            <span id="businessDateLabel">业务实际发生时间</span>
+            <input name="businessDate" id="businessDateInput" type="date" />
+          </label>
+
+          <label id="expenseTypeField" hidden>
+            <span>费用类型</span>
+            <select name="expenseType" id="expenseTypeSelect"></select>
+          </label>
+
+          <label id="reasonField">
+            <span id="reasonLabel">申请事由</span>
+            <input name="reason" id="reasonInput" placeholder="重点突出，简明扼要" />
+          </label>
+
+          <label>
+            <span id="amountLabel">申请金额</span>
+            <input name="amount" id="amountInput" type="text" inputmode="decimal" placeholder="0.00" />
+          </label>
+
+          <label id="amountUpperField">
+            <span>大写</span>
+            <input name="amountUpper" id="amountUpperInput" readonly />
+          </label>
+
+          <section class="amount-check-box" id="amountCheckBox">
+            <strong id="amountCheckTitle">总报销金额待填写</strong>
+            <p id="amountCheckText">请填写本次实际要报销的总金额，系统会和付款截图识别总额、明细合计自动比对。</p>
+          </section>
+
+          <label id="projectField">
+            <span>所属项目/业务</span>
+            <select name="project" id="projectSelect"></select>
+          </label>
+
+          <label id="invoiceTypeField">
+            <span>发票类型</span>
+            <select name="invoiceType" id="invoiceTypeSelect"></select>
+          </label>
+
+          <label id="companyField">
+            <span>需要付款的公司名称</span>
+            <div class="company-combobox" id="companyCombobox">
+              <input name="companyName" id="companySelect" autocomplete="off" placeholder="输入公司名称搜索" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="companyOptionsMenu" />
+              <button class="company-menu-toggle" id="companyMenuToggle" type="button" aria-label="展开公司清单" aria-expanded="false" aria-controls="companyOptionsMenu">▾</button>
+              <div class="company-options-menu" id="companyOptionsMenu" role="listbox" hidden></div>
+            </div>
+            <small class="company-match-hint" id="companyMatchHint"></small>
+            <button class="text-button company-recognition-refresh" id="companyRecognitionRefreshButton" type="button">重新检测社保主体</button>
+          </label>
+
+          <section class="recipient-account-box" id="recipientAccountField">
+            <div class="recipient-account-head">
+              <div>
+                <strong>收款人账户信息 <em>*</em></strong>
+                <p>选择已保存账户会自动填写；也可手工填写完整的收款账户信息。</p>
+              </div>
+              <button class="secondary-button recipient-account-action" id="openRecipientAccountDialog" type="button">选择/管理账户</button>
+            </div>
+            <label class="recipient-account-text-field">
+              <input name="recipientAccountText" id="recipientAccountTextInput" autocomplete="off" placeholder="请选择或填写收款人、账号、开户行等完整信息" required />
+            </label>
+            <p class="recipient-account-status" id="recipientAccountStatus">登录后可查看本人已保存的收款账户。</p>
+          </section>
+
+          <label id="remarkField">
+            <span>备注</span>
+            <textarea name="remark" id="remarkInput" rows="3" placeholder="可补充业务背景、异常原因或付款说明"></textarea>
+          </label>
+
+          <label id="otherRemarkField">
+            <span>其他备注</span>
+            <input name="otherRemark" id="otherRemarkInput" placeholder="其他补充说明" />
+          </label>
+
+          <section class="daily-preview" id="dailyPreviewSection" hidden>
+            <strong>OA 表格预览</strong>
+            <div id="dailyPreviewRows" class="daily-preview-rows"></div>
+          </section>
+
+          <label id="paymentFilesField">
+            <span>付款截图/订单截图</span>
+            <input id="paymentFilesInput" readonly placeholder="上传后自动填入文件名" />
+          </label>
+
+          <label id="invoiceFilesField">
+            <span>发票附件</span>
+            <input id="invoiceFilesInput" readonly placeholder="上传后自动填入文件名" />
+          </label>
+
+          <input id="paymentDetectedAmountInput" type="hidden" />
+          <input id="invoiceDetectedAmountInput" type="hidden" />
+
+          <section class="detected-summary-grid">
+            <article class="detected-summary-card">
+              <div class="detected-summary-head">
+                <span>付款截图识别总额</span>
+                <strong id="paymentDetectedTotal">待 OCR</strong>
+              </div>
+              <div class="detected-amount-list" id="paymentDetectedList">暂无识别明细</div>
+            </article>
+
+            <article class="detected-summary-card" id="invoiceDetectedSummary">
+              <div class="detected-summary-head">
+                <span>发票识别总额</span>
+                <strong id="invoiceDetectedTotal">待 OCR</strong>
+              </div>
+              <div class="detected-amount-list" id="invoiceDetectedList">暂无识别明细</div>
+            </article>
+          </section>
+
+          <section class="risk-box" id="riskBox">
+            <strong>当前策略</strong>
+            <p>附件会先上传到钉钉审批附件空间，提交时写入目标 OA 表单。关联审批信息一期写入备注。</p>
+          </section>
+
+          <section class="summary-row">
+            <div>
+              <span>附件</span>
+              <strong id="attachmentCount">0</strong>
+            </div>
+            <div>
+              <span>付款</span>
+              <strong id="paymentCount">0</strong>
+            </div>
+            <div id="invoiceSummaryStat">
+              <span>发票</span>
+              <strong id="invoiceCount">0</strong>
+            </div>
+            <div>
+              <span>状态</span>
+              <strong id="draftStatus">待填写</strong>
+            </div>
+          </section>
+
+          <button class="primary-button" id="submitButton" type="submit">提交钉钉 OA</button>
+        </form>
+      </aside>
+    </main>
+
+    <button class="floating-draft-toggle" id="floatingDraftButton" type="button" hidden>显示 OA 表单</button>
+
+    <dialog id="resultDialog">
+      <div class="dialog-content result-dialog-content" data-result-state="neutral">
+        <div class="result-dialog-heading">
+          <span class="result-dialog-icon" id="resultIcon" aria-hidden="true">i</span>
+          <div>
+            <p class="eyebrow" id="resultEyebrow">审批结果</p>
+            <h2 id="resultTitle">正在处理</h2>
+          </div>
+        </div>
+        <p class="result-dialog-summary" id="resultText"></p>
+        <dl class="result-dialog-details" id="resultDetails"></dl>
+        <p class="result-dialog-hint" id="resultHint" hidden></p>
+        <div class="result-dialog-actions">
+          <button class="secondary-button" id="copyResultInstance" type="button" hidden>复制审批编号</button>
+          <button class="primary-button" id="closeDialog" type="button">完成</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="submissionHistoryDialog" class="submission-history-dialog">
+      <div class="submission-history-content">
+        <header class="submission-history-header">
+          <div>
+            <p class="eyebrow">个人记录</p>
+            <h2>最近提交记录</h2>
+            <p>仅显示当前钉钉登录人最近的报销发起结果。</p>
+          </div>
+          <button class="icon-button" id="closeSubmissionHistoryDialog" type="button" title="关闭">×</button>
+        </header>
+        <div class="submission-history-list" id="submissionHistoryList"></div>
+      </div>
+    </dialog>
+
+    <dialog id="draftRestoreDialog" class="draft-restore-dialog">
+      <div class="draft-restore-content">
+        <h2>发现未完成草稿</h2>
+        <p id="draftRestoreText">检测到上次未完成的填写记录，是否继续填写？</p>
+        <div class="draft-restore-actions">
+          <button class="secondary-button" id="discardDraftButton" type="button">新建填写</button>
+          <button class="primary-button" id="restoreDraftButton" type="button">恢复草稿</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="attachmentAssignmentDialog" class="assignment-dialog">
+      <div class="assignment-dialog-content">
+        <header class="assignment-dialog-header">
+          <div>
+            <h2>分配报销附件</h2>
+            <p>点击文件即可归入对应费用明细或关联审批；同一文件在每一层只能归入一项。</p>
+          </div>
+          <button class="icon-button" id="closeAssignmentDialog" type="button" title="关闭">×</button>
+        </header>
+        <div class="assignment-overview" id="assignmentOverview"></div>
+        <div class="assignment-upload-toolbar">
+          <span>还没有附件？可在这里一次性批量选择：</span>
+          <button class="secondary-button" id="assignmentUploadPayment" type="button">+ 添加付款截图</button>
+          <button class="secondary-button" id="assignmentUploadInvoice" type="button">+ 添加发票附件</button>
+        </div>
+        <div class="assignment-sections" id="assignmentSections"></div>
+        <footer class="assignment-dialog-footer">
+          <span id="assignmentStatus">请完成附件归类</span>
+          <button class="primary-button" id="applyAttachmentAssignments" type="button">完成分配</button>
+        </footer>
+      </div>
+    </dialog>
+
+    <dialog id="ocrSuggestionDialog" class="ocr-suggestion-dialog">
+      <div class="ocr-suggestion-content">
+        <header class="ocr-suggestion-header">
+          <div>
+            <p class="eyebrow">OCR 明细预览</p>
+            <h2>确认自动填写建议</h2>
+            <p id="ocrSuggestionSummary">系统将根据已完成分配的附件预填费用明细；采纳后仍可继续手工修改。</p>
+          </div>
+          <button class="icon-button" id="closeOcrSuggestionDialog" type="button" title="暂不采纳">×</button>
+        </header>
+        <div class="ocr-suggestion-notice" id="ocrSuggestionNotice"></div>
+        <div class="ocr-suggestion-list" id="ocrSuggestionList"></div>
+        <footer class="ocr-suggestion-footer">
+          <span id="ocrSuggestionStatus">请核对每条建议的识别依据。</span>
+          <div>
+            <button class="secondary-button" id="closeOcrSuggestionButton" type="button">暂不采纳</button>
+            <button class="primary-button" id="applyOcrSuggestionsButton" type="button">一键采纳建议</button>
+          </div>
+        </footer>
+      </div>
+    </dialog>
+
+    <dialog id="duplicateReviewDialog" class="duplicate-review-dialog">
+      <div class="duplicate-review-content">
+        <header>
+          <div>
+            <h2>确认疑似重复凭证</h2>
+            <p>系统暂未重复计入这些附件。请集中核对一次；已明确相同的凭证会自动合并，不会出现在这里。</p>
+          </div>
+          <button class="icon-button" id="closeDuplicateReviewDialog" type="button" title="关闭">×</button>
+        </header>
+        <div class="duplicate-review-list" id="duplicateReviewList"></div>
+        <footer>
+          <span>默认按同一凭证处理，可将确实不同的凭证改为“不同凭证”。</span>
+          <button class="primary-button" id="saveDuplicateReviewButton" type="button">保存确认</button>
+        </footer>
+      </div>
+    </dialog>
+
+    <dialog id="attachmentRenameDialog" class="attachment-rename-dialog">
+      <form class="attachment-rename-content" method="dialog">
+        <header>
+          <div>
+            <p class="eyebrow">附件显示名称</p>
+            <h2>修改附件名称</h2>
+            <p id="attachmentRenameHint">改名不会重新上传或重新识别。</p>
+          </div>
+          <button class="icon-button" id="closeAttachmentRenameDialog" type="button" title="关闭">×</button>
+        </header>
+        <label>
+          <span>文件名称</span>
+          <input id="attachmentRenameInput" maxlength="160" autocomplete="off" required />
+        </label>
+        <p class="attachment-rename-status" id="attachmentRenameStatus" aria-live="polite"></p>
+        <footer>
+          <button class="secondary-button" id="cancelAttachmentRenameButton" type="button">取消</button>
+          <button class="primary-button" id="saveAttachmentRenameButton" type="submit">保存名称</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="recipientAccountDialog" class="recipient-account-dialog">
+      <div class="recipient-account-dialog-content">
+        <header class="recipient-account-dialog-header">
+          <div>
+            <h2>收款账户</h2>
+            <p>仅当前钉钉登录人可见。选择后会按文本格式写入本次报销单。</p>
+          </div>
+          <button class="icon-button" id="closeRecipientAccountDialog" type="button" title="关闭">×</button>
+        </header>
+        <div class="recipient-account-dialog-body">
+          <section class="saved-recipient-accounts">
+            <div class="recipient-account-section-title">
+              <strong>常用账户</strong>
+              <span id="recipientAccountsCount">0 个</span>
+            </div>
+            <div class="recipient-accounts-list" id="recipientAccountsList"></div>
+          </section>
+          <section class="recipient-account-editor">
+            <div class="recipient-account-section-title">
+              <strong id="recipientAccountEditorTitle">新增收款账户</strong>
+              <button class="text-button" id="resetRecipientAccountEditor" type="button">清空</button>
+            </div>
+            <div class="recipient-account-editor-grid">
+              <label>
+                <span>账户类型</span>
+                <select id="recipientAccountTypeInput">
+                  <option value="PERSONAL_BANK_CARD">个人银行卡</option>
+                  <option value="CORPORATE_BANK_ACCOUNT">对公账户</option>
+                  <option value="ALIPAY">支付宝</option>
+                  <option value="DINGTALK">钉钉账户</option>
+                </select>
+              </label>
+              <label>
+                <span>账户别名</span>
+                <input id="recipientAccountAliasInput" maxlength="40" placeholder="例如：张三工资卡" />
+              </label>
+              <label>
+                <span>收款人/户名 <em>*</em></span>
+                <input id="recipientAccountNameInput" maxlength="80" placeholder="与账户实名一致" />
+              </label>
+              <label>
+                <span>账号 <em>*</em></span>
+                <input id="recipientAccountNumberInput" maxlength="80" autocomplete="off" placeholder="银行卡号或收款账号" />
+              </label>
+              <label class="recipient-bank-field">
+                <span>开户行 <em>*</em></span>
+                <input id="recipientAccountBankInput" maxlength="100" placeholder="例如：中国建设银行" />
+              </label>
+              <label class="recipient-bank-field">
+                <span>开户支行 <em>*</em></span>
+                <input id="recipientAccountBranchInput" maxlength="120" placeholder="例如：杭州某某支行" />
+              </label>
+              <label class="recipient-bank-field">
+                <span>开户省份 <em>*</em></span>
+                <input id="recipientAccountProvinceInput" maxlength="40" placeholder="例如：浙江省" />
+              </label>
+              <label class="recipient-bank-field">
+                <span>开户城市 <em>*</em></span>
+                <input id="recipientAccountCityInput" maxlength="40" placeholder="例如：杭州市" />
+              </label>
+            </div>
+            <p class="recipient-account-editor-tip" id="recipientAccountEditorTip">银行卡和对公账户需填写完整开户行信息。</p>
+            <button class="primary-button" id="saveRecipientAccountButton" type="button">保存账户</button>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="https://g.alicdn.com/dingding/dingtalk-jsapi/3.0.41/dingtalk.open.js"></script>
+    <script src="./app.js?v=20260907-company-option-1"></script>
+  </body>
+</html>
